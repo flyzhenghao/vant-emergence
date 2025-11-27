@@ -4,8 +4,8 @@
  */
 
 // --- Configuration ---
-const GRID_SIZE = 101; // Odd number to have a center
-const CELL_SIZE = 6;
+const GRID_SIZE = 151; // Increased size to allow more movement before hitting wall
+const CELL_SIZE = 4; // Smaller cells to fit larger grid
 const CANVAS_SIZE = GRID_SIZE * CELL_SIZE;
 
 // --- State ---
@@ -17,6 +17,7 @@ let speed = 10; // Steps per frame (approx)
 let animationId = null;
 let currentStepIndex = 0;
 let currentLang = 'zh'; // 'zh' or 'en'
+let wrapWorld = false; // Default: No Wrap
 
 // --- Content Data ---
 const content = [
@@ -29,12 +30,14 @@ const content = [
         text: {
             zh: `
                 <p>欢迎来到“涌现”的世界。我们将通过一个极其简单的模型——<strong>兰顿蚂蚁 (Langton's Ant)</strong>，来探索复杂性是如何从简单规则中诞生的。</p>
-                <p>这个模型由 Christopher Langton 在 1986 年提出。它在一个无限大的网格上运行（这里我们限制为 101x101）。</p>
+                <p>这个模型由 Christopher Langton 在 1986 年提出。</p>
+                <p><strong>注意：</strong> 本模拟默认关闭了“世界循环 (Wrap World)”，这意味着蚂蚁如果走到边界将会停止。这符合教程中的设定。</p>
                 <p>想象一只蚂蚁站在格子上。它只有两个极其简单的规则。让我们开始吧。</p>
             `,
             en: `
                 <p>Welcome to the world of "Emergence". We will explore how complexity arises from simplicity using a remarkably simple model: <strong>Langton's Ant</strong>.</p>
-                <p>Proposed by Christopher Langton in 1986, this model runs on an infinite grid (here limited to 101x101).</p>
+                <p>Proposed by Christopher Langton in 1986.</p>
+                <p><strong>Note:</strong> "Wrap World" is disabled by default, meaning the ant will stop if it hits the boundary. This matches the tutorial settings.</p>
                 <p>Imagine an ant standing on a grid cell. It follows just two extremely simple rules. Let's begin.</p>
             `
         }
@@ -114,15 +117,15 @@ const content = [
         },
         text: {
             zh: `
-                <p>耐心等待。大约在 <strong>10,000 步</strong>左右（取决于具体的网格边界处理，这里我们让它在边界循环），奇迹会发生。</p>
+                <p>耐心等待。大约在 <strong>10,000 步</strong>左右，奇迹会发生。</p>
                 <p>突然间，混沌中诞生了秩序。蚂蚁会陷入一个由 104 步组成的循环，形成一条不断延伸的粗线，被称为<strong>“高速公路 (Highway)”</strong>。</p>
-                <p>它将永远沿着这个方向走下去。</p>
+                <p>它将永远沿着这个方向走下去（直到碰到世界边缘）。</p>
                 <p><em>将速度调到最大，见证这一刻的到来。</em></p>
             `,
             en: `
-                <p>Be patient. Around step <strong>10,000</strong> (depending on boundary handling; here we wrap edges), a miracle happens.</p>
+                <p>Be patient. Around step <strong>10,000</strong>, a miracle happens.</p>
                 <p>Suddenly, order emerges from chaos. The ant falls into a 104-step cycle, creating a continuously extending thick line known as the <strong>"Highway"</strong>.</p>
-                <p>It will march in this direction forever.</p>
+                <p>It will march in this direction forever (until it hits the world's edge).</p>
                 <p><em>Crank up the speed and witness this moment.</em></p>
             `
         }
@@ -162,6 +165,7 @@ const playPauseBtn = document.getElementById('play-pause-btn');
 const stepBtn = document.getElementById('step-btn');
 const resetBtn = document.getElementById('reset-btn');
 const speedSlider = document.getElementById('speed-slider');
+const wrapToggle = document.getElementById('wrap-toggle');
 const stepCountDisplay = document.getElementById('step-count');
 const phaseDisplay = document.getElementById('phase-display');
 
@@ -169,11 +173,11 @@ const phaseDisplay = document.getElementById('phase-display');
 function init() {
     canvas.width = CANVAS_SIZE;
     canvas.height = CANVAS_SIZE;
-    
+
     resetSimulation();
     renderContent();
     draw();
-    
+
     // Event Listeners
     prevBtn.addEventListener('click', () => changeStep(-1));
     nextBtn.addEventListener('click', () => changeStep(1));
@@ -182,23 +186,24 @@ function init() {
     stepBtn.addEventListener('click', singleStep);
     resetBtn.addEventListener('click', resetSimulation);
     speedSlider.addEventListener('input', (e) => speed = parseInt(e.target.value));
+    wrapToggle.addEventListener('change', (e) => wrapWorld = e.target.checked);
 }
 
 function resetSimulation() {
     // Initialize Grid (0: White, 1: Black)
     grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
-    
+
     // Center Ant
     ant = {
         x: Math.floor(GRID_SIZE / 2),
         y: Math.floor(GRID_SIZE / 2),
         dir: 0 // 0: Up, 1: Right, 2: Down, 3: Left
     };
-    
+
     stepCount = 0;
     updateStats();
     draw();
-    
+
     if (isRunning) {
         togglePlayPause();
     }
@@ -208,32 +213,51 @@ function resetSimulation() {
 function update() {
     // Current cell color
     const currentVal = grid[ant.x][ant.y];
-    
+
     // Flip color
     grid[ant.x][ant.y] = currentVal === 0 ? 1 : 0;
-    
+
     // Turn
     if (currentVal === 0) { // White -> Turn Right
         ant.dir = (ant.dir + 1) % 4;
     } else { // Black -> Turn Left
         ant.dir = (ant.dir + 3) % 4; // +3 is same as -1 mod 4
     }
-    
+
     // Move Forward
-    switch(ant.dir) {
-        case 0: ant.y--; break; // Up
-        case 1: ant.x++; break; // Right
-        case 2: ant.y++; break; // Down
-        case 3: ant.x--; break; // Left
+    let nextX = ant.x;
+    let nextY = ant.y;
+
+    switch (ant.dir) {
+        case 0: nextY--; break; // Up
+        case 1: nextX++; break; // Right
+        case 2: nextY++; break; // Down
+        case 3: nextX--; break; // Left
     }
-    
-    // Wrap around (Torus topology)
-    if (ant.x < 0) ant.x = GRID_SIZE - 1;
-    if (ant.x >= GRID_SIZE) ant.x = 0;
-    if (ant.y < 0) ant.y = GRID_SIZE - 1;
-    if (ant.y >= GRID_SIZE) ant.y = 0;
-    
-    stepCount++;
+
+    // Boundary Handling
+    if (wrapWorld) {
+        // Wrap around (Torus topology)
+        if (nextX < 0) nextX = GRID_SIZE - 1;
+        if (nextX >= GRID_SIZE) nextX = 0;
+        if (nextY < 0) nextY = GRID_SIZE - 1;
+        if (nextY >= GRID_SIZE) nextY = 0;
+
+        ant.x = nextX;
+        ant.y = nextY;
+        stepCount++;
+    } else {
+        // No Wrap: Stop if out of bounds
+        if (nextX >= 0 && nextX < GRID_SIZE && nextY >= 0 && nextY < GRID_SIZE) {
+            ant.x = nextX;
+            ant.y = nextY;
+            stepCount++;
+        } else {
+            // Hit wall - Stop simulation
+            if (isRunning) togglePlayPause();
+            alert(currentLang === 'zh' ? '蚂蚁撞到了世界边缘！' : 'The ant hit the edge of the world!');
+        }
+    }
 }
 
 function determinePhase() {
@@ -252,7 +276,7 @@ function draw() {
     // Clear
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     // Draw Black Cells
     ctx.fillStyle = '#2c3e50';
     for (let x = 0; x < GRID_SIZE; x++) {
@@ -262,41 +286,44 @@ function draw() {
             }
         }
     }
-    
+
     // Draw Ant
     ctx.fillStyle = '#ff5f5f';
     ctx.fillRect(ant.x * CELL_SIZE, ant.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-    
+
     // Optional: Draw Ant Head/Direction (simple distinct pixel)
     ctx.fillStyle = '#fff';
     let headX = ant.x * CELL_SIZE;
     let headY = ant.y * CELL_SIZE;
     const size = CELL_SIZE;
-    
+
     // Small dot to indicate direction
-    switch(ant.dir) {
-        case 0: ctx.fillRect(headX + size/3, headY, size/3, size/3); break; // Top
-        case 1: ctx.fillRect(headX + size*2/3, headY + size/3, size/3, size/3); break; // Right
-        case 2: ctx.fillRect(headX + size/3, headY + size*2/3, size/3, size/3); break; // Bottom
-        case 3: ctx.fillRect(headX, headY + size/3, size/3, size/3); break; // Left
+    switch (ant.dir) {
+        case 0: ctx.fillRect(headX + size / 3, headY, size / 3, size / 3); break; // Top
+        case 1: ctx.fillRect(headX + size * 2 / 3, headY + size / 3, size / 3, size / 3); break; // Right
+        case 2: ctx.fillRect(headX + size / 3, headY + size * 2 / 3, size / 3, size / 3); break; // Bottom
+        case 3: ctx.fillRect(headX, headY + size / 3, size / 3, size / 3); break; // Left
     }
 }
 
 function loop() {
     if (!isRunning) return;
-    
+
     // Execute multiple steps per frame based on speed
     // Speed 1-100 maps to roughly 1 to 1000 steps per frame
-    const stepsPerFrame = Math.floor(Math.pow(speed, 1.5)); 
-    
+    const stepsPerFrame = Math.floor(Math.pow(speed, 1.5));
+
     for (let i = 0; i < stepsPerFrame; i++) {
         update();
+        if (!isRunning) break; // Stop immediately if hit wall
     }
-    
+
     draw();
     updateStats();
-    
-    animationId = requestAnimationFrame(loop);
+
+    if (isRunning) {
+        animationId = requestAnimationFrame(loop);
+    }
 }
 
 // --- Controls ---
@@ -304,7 +331,7 @@ function togglePlayPause() {
     isRunning = !isRunning;
     playPauseBtn.textContent = isRunning ? '⏸' : '▶';
     playPauseBtn.classList.toggle('primary', !isRunning); // Visual toggle
-    
+
     if (isRunning) {
         loop();
     } else {
@@ -326,9 +353,9 @@ function renderContent() {
         <h2>${data.title[currentLang]}</h2>
         <div class="text-body">${data.text[currentLang]}</div>
     `;
-    
+
     stepIndicator.textContent = `${currentStepIndex + 1} / ${content.length}`;
-    
+
     prevBtn.disabled = currentStepIndex === 0;
     nextBtn.disabled = currentStepIndex === content.length - 1;
 }
