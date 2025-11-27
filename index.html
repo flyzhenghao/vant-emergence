@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergence: The Vant Model</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Emergence <span class="subtitle">The Vant Model</span></h1>
+            <button id="lang-toggle" class="btn-secondary">中文 / EN</button>
+        </header>
+
+        <main>
+            <section class="content-panel">
+                <div id="tutorial-content">
+                    <!-- Dynamic Content Here -->
+                </div>
+                <div class="navigation-controls">
+                    <button id="prev-step" class="btn-nav" disabled>← Previous</button>
+                    <span id="step-indicator">1 / 6</span>
+                    <button id="next-step" class="btn-nav">Next →</button>
+                </div>
+            </section>
+
+            <section class="simulation-panel">
+                <div class="canvas-container">
+                    <canvas id="gridCanvas"></canvas>
+                    <div class="stats">
+                        <span>Steps: <span id="step-count">0</span></span>
+                        <span>Phase: <span id="phase-display">Initializing</span></span>
+                    </div>
+                </div>
+                <div class="sim-controls">
+                    <button id="reset-btn" class="btn-control" title="Reset">↻</button>
+                    <button id="play-pause-btn" class="btn-control primary" title="Play/Pause">▶</button>
+                    <button id="step-btn" class="btn-control" title="Single Step">⏯</button>
+                    <div class="speed-control">
+                        <label for="speed-slider">Speed</label>
+                        <input type="range" id="speed-slider" min="1" max="100" value="10">
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
