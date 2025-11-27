@@ -187,6 +187,9 @@ function init() {
     resetBtn.addEventListener('click', resetSimulation);
     speedSlider.addEventListener('input', (e) => speed = parseInt(e.target.value));
     wrapToggle.addEventListener('change', (e) => wrapWorld = e.target.checked);
+
+    console.log("Vant Emergence v1.1 Loaded");
+    console.log("Wrap World Default:", wrapWorld);
 }
 
 function resetSimulation() {
